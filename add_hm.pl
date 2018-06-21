@@ -55,13 +55,12 @@ else {
 	else { die "Usage: [add_hm.pl FILENAME | add_hm.pl FILENAME -u]"; }
 }
 
+
 open(my $fhlogfile, '>:encoding(UTF-8)', $logfile) 
 	or die "Could not open file '$logfile' $!";
 
 open(my $fhinfile, '<:encoding(UTF-8)', $infile)
   or die "Could not open file '$infile' $!";
-
-
 
  
 write_to_log("$tm\n$scriptname Input file $infile");
@@ -69,6 +68,7 @@ write_to_log("$tm\n$scriptname Input file $infile");
 #1st opl the file - i.e. put each record on a line.
 
 opl_file();
+#print opl_file;
 	
 
 close $fhinfile;
@@ -92,6 +92,9 @@ foreach my $line (@opld_file) {
 #3rd add the homographs where I've found a non unique lexeme.
 update_homographs();
 
+#print Dumper \%lx_Array;
+
+
 
 #if no duplicate homographs were found, then we can print out the updated file
 if ($TO_PRINT eq "TRUE"){
@@ -99,15 +102,14 @@ if ($TO_PRINT eq "TRUE"){
 	if ( $ADD_HM_TO_UNIQUE eq "TRUE" ){
 		write_to_log("\nAdding default value $DEFAULT_HM to unique lexemes\n");
 	}
-
 	foreach my $r (@opld_file){
-
-		if ($r =~ /^\\lx (.*?)#\\hm (.*?)#/){ 
+		if ($r =~ /\\lx (.*?)#\\hm (\d*?)#/){ 
 			if ( $2 == $DEFAULT_HM ){
 				$r =~ s/^(\\lx [^#]*#)\\hm (.*?)#/$1/;
 			}
+	
 		}
-		elsif( $r =~ /^\\lx (.*?)#/ ){
+		elsif ( $r =~ /^\\lx ([^#]*)#/ ){ 
 			my $hm = shift @{$lx_Array{$1}{index}};
 			if ( $hm > 0 ){ 
 				$r =~ s/^(\\lx [^#]*#)/$1\\hm $hm#/;
@@ -121,8 +123,7 @@ if ($TO_PRINT eq "TRUE"){
 			}
 		}
 		
-		my $x = de_opl_file($r); 
-		print $x;
+		print de_opl_file($r); 
 
 	}
 }
@@ -192,14 +193,21 @@ sub update_homographs{
 }
 
 sub opl_file{
+	my $firstLine = "TRUE";
+	my $line;
 	while (<$fhinfile>){
 		chomp;
-		(push @opld_file, "\n") if /\\lx /;
+		if (/\\lx /){
+			push @opld_file, $line."\n"; 
+			$line="";
+		}
 		s/#/\_\_hash\_\_/g;
-		$_ .= "#";
-		push @opld_file, $_;
+						#$_ .= "#";
+		$line .= $_."#";		
+						#push @opld_file, $_;
 	}
-	push @opld_file, "\n";
+	$line .= "#";		
+	push @opld_file, $line."\n";
 }
 
 
