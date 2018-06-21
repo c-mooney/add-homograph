@@ -1,54 +1,143 @@
 ﻿=comment
 
 Usage:
-Edit this file to add infile, outfile, and logfile names.
-Example:
-my $infile = 'test.opl';
-my $outfile= 'testout.db';
-my $log_file= 'testlog.txt';
+#adds homographs where necessary and removes \hm Default Value (set to 100) to unique entries.
+#hm Default Value is placed in an SFM when using this script with the -u option. Creates log file add_hm.<time>.log
+#
+	perl add_hm.pl FILENAME.SFM  
 
-To execute: 
-Windows: Double click on this script from Windows Explorer -or- open a cmd prompt, navigate
-to the same location as this script, type in 'perl add_hm.pl' without the single quote
 
-Unix: from the command prompt type in 'perl add_hm.pl' without the single quote
+#adds homographs where necessary and adds \hm Default Value (set to 100) to unique entries.  
+#Creates log file add_hm_u.<time>.log
+#
+	perl add_hm.pl FILENAME.SFM -u
 
+
+#input file is an SFM file.  This file will be opl'd, processed and de_opl'd. 
+#output file is an SFM file.
+#
 =cut
 
 use utf8;
 use feature ':5.24';
-#use Data::Dumper qw(Dumper);
+use strict;
+use warnings;
+use Data::Dumper qw(Dumper);
+use Time::Piece;
+my $date = Time::Piece->new;
+$date->time_separator("");
+$date->date_separator("");
+my $tm = $date->datetime;
 
-
-#update these files:
-my $infile = 'Samo5.opl';
-my $outfile= 'Samo5oplhm.out';
-my $log_file= 'Samo5opl.log';
-
+my $infile ="";
 my $scriptname = $0;
-
-my $row;
-my @file_Array;
+my $logfile = "$tm.log";
 my %lx_Array;
-my $hWord;
 my $hm;
-my $hWord_hm;
-my $lxRow;
 my @tmpRec;
-my $TO_PRINT = "TRUE";
+my $TO_PRINT = "TRUE";    #Flag indicates 
 my $DUPLICATE = "FALSE";
 my $ADD_HM_TO_UNIQUE = "FALSE";
 my $DEFAULT_HM = 100;
 my $numargs = $#ARGV + 1;
+my @opld_file;
 
-open(my $fhlogfile, '>:encoding(UTF-8)', $log_file) 
-	or die "Could not open file '$log_file' $!";
+$tm = $date->strftime();
+if ( $numargs == 0 ){
+	 die "Usage: [add_hm.pl FILENAME | add_hm.pl FILENAME -u]"; 
+}
+elsif ( $numargs == 1 ){
+	$infile = $ARGV[0]; 
+}
+else {
+	$infile = $ARGV[0]; 
+	if ($ARGV[1] eq "-u"){ $ADD_HM_TO_UNIQUE = "TRUE"; }
+	else { die "Usage: [add_hm.pl FILENAME | add_hm.pl FILENAME -u]"; }
+}
 
-open(my $fhoutfile, '>:encoding(UTF-8)', $outfile) 
-	or die "Could not open file '$outfile' $!";
+open(my $fhlogfile, '>:encoding(UTF-8)', $logfile) 
+	or die "Could not open file '$logfile' $!";
 
 open(my $fhinfile, '<:encoding(UTF-8)', $infile)
   or die "Could not open file '$infile' $!";
+
+
+
+ 
+write_to_log("$tm\n$scriptname Input file $infile");
+
+#1st opl the file - i.e. put each record on a line.
+
+opl_file();
+	
+
+close $fhinfile;
+
+#2nd build lx_Array, a hash lexeme->[hm,hm,hm] or lexeme->[0] if it is not a homonym.  If hm does not exist in the record, but the lexeme 
+#is not unique, add a 0 to the array as a place holder to be filled in later with a proper homograph.
+
+
+foreach my $line (@opld_file) {
+
+	if ($line =~ /\\lx (.*?)#\\hm (.d*?)/){
+		push @{$lx_Array{$1}{index}}, $2;
+	}
+	elsif ($line =~ /\\lx (.*?)#/){
+		push @{$lx_Array{$1}{index}}, 0;
+	}
+
+}
+
+
+#3rd add the homographs where I've found a non unique lexeme.
+update_homographs();
+
+
+#if no duplicate homographs were found, then we can print out the updated file
+if ($TO_PRINT eq "TRUE"){
+
+	if ( $ADD_HM_TO_UNIQUE eq "TRUE" ){
+		write_to_log("\nAdding default value $DEFAULT_HM to unique lexemes\n");
+	}
+
+	foreach my $r (@opld_file){
+
+		if ($r =~ /^\\lx (.*?)#\\hm (.*?)#/){ 
+			if ( $2 == $DEFAULT_HM ){
+				$r =~ s/^(\\lx [^#]*#)\\hm (.*?)#/$1/;
+			}
+		}
+		elsif( $r =~ /^\\lx (.*?)#/ ){
+			my $hm = shift @{$lx_Array{$1}{index}};
+			if ( $hm > 0 ){ 
+				$r =~ s/^(\\lx [^#]*#)/$1\\hm $hm#/;
+			}
+			if ( $ADD_HM_TO_UNIQUE eq "TRUE" ){
+				write_to_log(qq(Adding \\hm $DEFAULT_HM to unique lexeme $1));
+				 
+				if ( $hm == 0 ){
+					$r =~ s/^(\\lx [^#]*#)/$1\\hm $DEFAULT_HM#/;
+				}
+			}
+		}
+		
+		my $x = de_opl_file($r); 
+		print $x;
+
+	}
+}
+else {
+	write_to_log (qq(Duplicate \\hm values have been found. SFM file must be corrected.));
+	print (qq(No data has been written. See details in log file.));
+
+}
+
+
+
+
+close $fhlogfile;
+
+######################  SUBROUTINES #################################
 
 sub write_to_log{
 
@@ -102,75 +191,27 @@ sub update_homographs{
 	}
 }
 
-
- 
-write_to_log("Input file $infile Output file $outfile");
-if ( $numargs == 1 ){
-	if (@ARGV[0] eq "-u"){ $ADD_HM_TO_UNIQUE = "TRUE"; write_to_log(qq(ADD_HM_TO_UNIQUE set to TRUE)); }
-	else { die "Usage: [add_hm.pl|add_hm.pl -u]"; }
-}
-
-
-#1st pass - build lx_Array, a hash lexeme->[hm,hm,hm] or lexeme->[0] if it is not a homonym.
-#Read the file into memory file_Array;
-
-while ( <$fhinfile> ) {
-
-	if (/\\lx (.*?)#\\hm (.d*?)/){
-		push @{$lx_Array{$1}{index}}, $2;
+sub opl_file{
+	while (<$fhinfile>){
+		chomp;
+		(push @opld_file, "\n") if /\\lx /;
+		s/#/\_\_hash\_\_/g;
+		$_ .= "#";
+		push @opld_file, $_;
 	}
-	elsif (/\\lx (.*?)#/){
-		push @{$lx_Array{$1}{index}}, 0;
+	push @opld_file, "\n";
+}
+
+
+sub de_opl_file{
+
+	if ( length $_[0] ){
+		my $l = $_[0];
+		chomp $l;
+		$l =~ s/#/\n/g;
+		$l =~ s/\_\_hash\_\_/#/g;
+		return $l;
 	}
-	push @file_Array, $_;
-
+	else { return ""; }
 }
-
-
-#print Dumper(\%lx_Array);
-
-
-
-update_homographs();
-
-#print Dumper(\%lx_Array);
-
-
-
-if ($TO_PRINT eq "TRUE"){
-
-	foreach my $r (@file_Array){
-
-		if ($r =~ /^\\lx (.*?)#\\hm (.*?)#/){ 
-			if ( $2 == $DEFAULT_HM ){
-				$r =~ s/^(\\lx [^#]*#)\\hm (.*?)#/$1/;
-			}
-		}
-		elsif( $r =~ /^\\lx (.*?)#/ ){
-			my $hm = shift @{$lx_Array{$1}{index}};
-			if ( $hm > 0 ){ 
-				$r =~ s/^(\\lx [^#]*#)/$1\\hm $hm#/;
-			}
-			if ( $ADD_HM_TO_UNIQUE eq "TRUE" ){
-				write_to_log(qq(Adding \\hm $DEFAULT_HM to unique lexeme $1));
-				 
-				if ( $hm == 0 ){
-					$r =~ s/^(\\lx [^#]*#)/$1\\hm $DEFAULT_HM#/;
-				}
-			}
-		}
-		print $fhoutfile $r;
-	}
-}
-else {
-	write_to_log (qq(Duplicate \\hm values have been found. SFM file must be corrected.));
-	print $fhoutfile (qq(No data has been written. See details in log file.))
-
-}
-
-
-
-close $fhlogfile;
-close $fhinfile;
-close $fhoutfile;
 
