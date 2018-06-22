@@ -133,10 +133,8 @@ else {
 
 }
 
-
-
-
 close $fhlogfile;
+print "\n";
 
 ######################  SUBROUTINES #################################
 
@@ -173,6 +171,17 @@ sub update_homographs{
 				$TO_PRINT = "FALSE";
 	 		}	
 			else {
+				#special processing needed here in the case add_hm has added the 
+				#default hm number to a unique lexeme, but after further processing, 
+				#I now find that the lexeme is no longer unique.  
+				#In this case, set the default value to 1.
+				for (my $i=0; $i< scalar @tmpRec; $i++){
+					if ( $tmpRec[$i] == $DEFAULT_HM ){
+						$tmpRec[$i] = 1;
+					}
+				}
+				#iterate through the list of hm numbers.  Replace zeros with the next 
+				#highest value.
 				for (my $i=0; $i< scalar @tmpRec; $i++ ){
 					if ( $tmpRec[$i] == 0 ){
 						#get max number 
@@ -198,13 +207,16 @@ sub opl_file{
 	while (<$fhinfile>){
 		chomp;
 		if (/\\lx /){
-			push @opld_file, $line."\n"; 
-			$line="";
+			if ( $firstLine eq "TRUE" ){
+				$firstLine = "FALSE";
+			}
+			else {
+				push @opld_file, $line."\n"; 
+				$line="";
+			}
 		}
 		s/#/\_\_hash\_\_/g;
-						#$_ .= "#";
 		$line .= $_."#";		
-						#push @opld_file, $_;
 	}
 	$line .= "#";		
 	push @opld_file, $line."\n";
