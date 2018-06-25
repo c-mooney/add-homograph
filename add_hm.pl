@@ -1,4 +1,4 @@
-﻿=comment
+=comment
 
 Usage:
 #adds homographs where necessary and removes \hm Default Value (set to 100) to unique entries.
@@ -19,7 +19,7 @@ Usage:
 =cut
 
 use utf8;
-use feature ':5.24';
+use feature ':5.22';
 use strict;
 use warnings;
 use Data::Dumper qw(Dumper);
@@ -33,6 +33,7 @@ my $infile ="";
 my $scriptname = $0;
 my $logfile = "$tm.log";
 my %lx_Array;
+my %scalar_count;
 my $hm;
 my @tmpRec;
 my $TO_PRINT = "TRUE";    #Flag indicates 
@@ -68,7 +69,7 @@ write_to_log("$tm\n$scriptname Input file $infile");
 #1st opl the file - i.e. put each record on a line.
 
 opl_file();
-#print opl_file;
+#print @opld_file;
 	
 
 close $fhinfile;
@@ -79,20 +80,22 @@ close $fhinfile;
 
 foreach my $line (@opld_file) {
 
-	if ($line =~ /\\lx (.*?)#\\hm (.d*?)/){
-		push @{$lx_Array{$1}{index}}, $2;
+	if ($line =~ /\\lx (.*?)#\\hm (\d*?)#/){
+		push @{$lx_Array{$1}}, $2;
 	}
 	elsif ($line =~ /\\lx (.*?)#/){
-		push @{$lx_Array{$1}{index}}, 0;
+		push @{$lx_Array{$1}}, 0;
 	}
 
 }
 
 
 #3rd add the homographs where I've found a non unique lexeme.
+#print Dumper \%lx_Array;
 update_homographs();
 
 #print Dumper \%lx_Array;
+#print @opld_file;
 
 
 
@@ -105,21 +108,22 @@ if ($TO_PRINT eq "TRUE"){
 	foreach my $r (@opld_file){
 		if ($r =~ /\\lx (.*?)#\\hm (\d*?)#/){ 
 			if ( $2 == $DEFAULT_HM ){
-				$r =~ s/^(\\lx [^#]*#)\\hm (.*?)#/$1/;
-			}
-	
-		}
-		elsif ( $r =~ /^\\lx ([^#]*)#/ ){ 
-			my $hm = shift @{$lx_Array{$1}{index}};
-			if ( $hm > 0 ){ 
-				$r =~ s/^(\\lx [^#]*#)/$1\\hm $hm#/;
-			}
-			if ( $ADD_HM_TO_UNIQUE eq "TRUE" ){
-				write_to_log(qq(Adding \\hm $DEFAULT_HM to unique lexeme $1));
-				 
-				if ( $hm == 0 ){
-					$r =~ s/^(\\lx [^#]*#)/$1\\hm $DEFAULT_HM#/;
+				if ( $scalar_count{$1} > 1 ) {
+					$r =~ s/^(\\lx [^#]*#)\\hm (.*?)#/$1\\hm 1#/;
 				}
+				elsif ( $ADD_HM_TO_UNIQUE eq "FALSE" ){
+					$r =~ s/^(\\lx [^#]*#)\\hm (.*?)#/$1/;
+				}
+			}
+		}
+		elsif ( $r =~ /^\\lx (.*?)#/ ){ 
+			my $hm = shift @{$lx_Array{$1}};
+			if ( $hm > 0 ){ 
+				$r =~ s/^(\\lx (.*?#))/$1\\hm $hm#/;
+			}
+			elsif ( $ADD_HM_TO_UNIQUE eq "TRUE" ){
+				write_to_log(qq(Adding \\hm $DEFAULT_HM to unique lexeme $1));
+				$r =~ s/^(\\lx [^#]*#)/$1\\hm $DEFAULT_HM#/;
 			}
 		}
 		
@@ -134,8 +138,6 @@ else {
 }
 
 close $fhlogfile;
-print "\n";
-
 ######################  SUBROUTINES #################################
 
 sub write_to_log{
@@ -146,8 +148,11 @@ sub write_to_log{
 
 sub update_homographs{
 
-#I've built my hash array of lexeme->[0|hm+].   Iterate through each of the hm lists and 
-#fill in the zero's with the next largest number if the record is a homonym.
+#I've built my hash array of lexeme->[0|hm+] (lx_Array).   Iterate through each of the hm lists and 
+#fill in the zeros with the next largest number if the record is a homonym.
+#
+#Use lx_Array to create a scalar_count.  scalar_count key = lexeme, value = # of homographs.  This is used
+#later in determining which lexeme was an "original" entry after new entries have been added (presumably by se2lx).
 #
 	foreach my $key ( keys %lx_Array ){
 	my %seen;
@@ -155,7 +160,8 @@ sub update_homographs{
 	my @dup_rec;
 
 		$DUPLICATE = "FALSE";
-		@tmpRec = @{$lx_Array{$key}{index}};
+		@tmpRec = @{$lx_Array{$key}};
+		$scalar_count{$key} = scalar @tmpRec;
 		if ( scalar @tmpRec > 1 ){
 			#this is a homonym
 			#check here to see if we have any duplicate \hm for this lexeme.
@@ -175,10 +181,14 @@ sub update_homographs{
 				#default hm number to a unique lexeme, but after further processing, 
 				#I now find that the lexeme is no longer unique.  
 				#In this case, set the default value to 1.
-				for (my $i=0; $i< scalar @tmpRec; $i++){
-					if ( $tmpRec[$i] == $DEFAULT_HM ){
-						$tmpRec[$i] = 1;
+				if ( $ADD_HM_TO_UNIQUE eq "FALSE" ){
+					for (my $i=0; $i< scalar @tmpRec; $i++){
+						if ( $tmpRec[$i] == $DEFAULT_HM ){
+							$tmpRec[$i] = 1;
+
+						}
 					}
+
 				}
 				#iterate through the list of hm numbers.  Replace zeros with the next 
 				#highest value.
@@ -196,7 +206,7 @@ sub update_homographs{
 		}
 
 
-	@{$lx_Array{$key}{index}} = @tmpRec;
+	@{$lx_Array{$key}} = @tmpRec;
 
 	}
 }
@@ -206,14 +216,14 @@ sub opl_file{
 	my $line;
 	while (<$fhinfile>){
 		chomp;
-		if (/\\lx /){
-			if ( $firstLine eq "TRUE" ){
-				$firstLine = "FALSE";
-			}
-			else {
-				push @opld_file, $line."\n"; 
-				$line="";
-			}
+		if ( $firstLine eq "TRUE" ){
+			$firstLine = "FALSE";
+		}
+		elsif (/\\lx / ){
+
+			push @opld_file, $line."\n"; 
+			$line="";
+				
 		}
 		s/#/\_\_hash\_\_/g;
 		$line .= $_."#";		
@@ -224,7 +234,7 @@ sub opl_file{
 
 
 sub de_opl_file{
-
+	#added wrapper "if" because I get a warming if I don't.
 	if ( length $_[0] ){
 		my $l = $_[0];
 		chomp $l;
@@ -234,4 +244,5 @@ sub de_opl_file{
 	}
 	else { return ""; }
 }
+
 
