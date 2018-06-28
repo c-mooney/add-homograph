@@ -28,6 +28,7 @@ my $date = Time::Piece->new;
 $date->time_separator("");
 $date->date_separator("");
 my $tm = $date->datetime;
+$tm = $date->strftime();
 
 my $infile ="";
 my $scriptname = $0;
@@ -43,7 +44,6 @@ my $DEFAULT_HM = 100;
 my $numargs = $#ARGV + 1;
 my @opld_file;
 
-$tm = $date->strftime();
 if ( $numargs == 0 ){
 	 die "Usage: [add_hm.pl FILENAME | add_hm.pl FILENAME -u]"; 
 }
@@ -60,23 +60,20 @@ else {
 open(my $fhlogfile, '>:encoding(UTF-8)', $logfile) 
 	or die "Could not open file '$logfile' $!";
 
-open(my $fhinfile, '<:encoding(UTF-8)', $infile)
-  or die "Could not open file '$infile' $!";
-
  
-write_to_log("$tm\n$scriptname Input file $infile");
+write_to_log("Input file $infile");
 
-#1st opl the file - i.e. put each record on a line.
-
+#opl the file - i.e. put each record on a line.
 opl_file();
-#print @opld_file;
-	
 
-close $fhinfile;
-
-#2nd build lx_Array, a hash lexeme->[hm,hm,hm] or lexeme->[0] if it is not a homonym.  If hm does not exist in the record, but the lexeme 
-#is not unique, add a 0 to the array as a place holder to be filled in later with a proper homograph.
-
+#Build lx_Array, a hash with the lexeme as the key; lexeme->[hm,hm,hm] or lexeme->[0] if it is not a homonym.  
+#If hm does not exist in the record, but the lexeme is not unique, add a 0 to the array 
+#as a place holder to be filled in later with a proper homograph number.
+#Array may look something like:
+#   A->[3,2]    Found lexeme A with homographs 3, 2.  
+#   B->[0]      Lexeme B is unique - not a homograph.
+#   C->[0,0,0]  Lexeme C is found 3 times, but no homograph numbers.  
+#   D->[1,0,0]  Lexeme D is found 3 times, the first entry found has \hm 1.
 
 foreach my $line (@opld_file) {
 
@@ -90,16 +87,11 @@ foreach my $line (@opld_file) {
 }
 
 
-#3rd add the homographs where I've found a non unique lexeme.
-#print Dumper \%lx_Array;
+#Add the homographs where I've found a non unique lexeme.
 update_homographs();
 
-#print Dumper \%lx_Array;
-#print @opld_file;
 
-
-
-#if no duplicate homographs were found, then we can print out the updated file
+#If no duplicate homographs were found, then we can print out the updated file
 if ($TO_PRINT eq "TRUE"){
 
 	if ( $ADD_HM_TO_UNIQUE eq "TRUE" ){
@@ -127,6 +119,7 @@ if ($TO_PRINT eq "TRUE"){
 			}
 		}
 		
+		#print out the file 
 		print de_opl_file($r); 
 
 	}
@@ -212,6 +205,10 @@ sub update_homographs{
 }
 
 sub opl_file{
+
+open(my $fhinfile, '<:encoding(UTF-8)', $infile)
+  or die "Could not open file '$infile' $!";
+
 	my $firstLine = "TRUE";
 	my $line;
 	while (<$fhinfile>){
@@ -230,6 +227,7 @@ sub opl_file{
 	}
 	$line .= "#";		
 	push @opld_file, $line."\n";
+close $fhinfile;
 }
 
 
