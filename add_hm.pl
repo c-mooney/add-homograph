@@ -28,7 +28,6 @@ my $date = Time::Piece->new;
 $date->time_separator("");
 $date->date_separator("");
 my $tm = $date->datetime;
-$tm = $date->strftime();
 
 my $infile ="";
 my $scriptname = $0;
@@ -235,7 +234,7 @@ sub de_opl_file{
 	#added wrapper "if" because I get a warming if I don't.
 	if ( length $_[0] ){
 		my $l = $_[0];
-		chomp $l;
+		#chomp $l;
 		$l =~ s/#/\n/g;
 		$l =~ s/\_\_hash\_\_/#/g;
 		return $l;
