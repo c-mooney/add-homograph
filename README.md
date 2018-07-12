@@ -3,7 +3,6 @@ Perl script which adds homographs to SFM as needed and removes any homographs ma
 Using the -u option adds homographs to unique lexemes as well. Default value of homograph for unique lexemes is 100. 
 
 
-Usage:
 	perl add_hm.pl FILENAME.SFM 
 
 #adds homographs where necessary and removes \hm Default Value (set to 100) from unique entries.
