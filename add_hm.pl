@@ -16,6 +16,12 @@ Usage:
 #input file is an SFM file.  This file will be opl'd, processed and de_opl'd. 
 #output file is an SFM file.
 #
+
+#########  ASSUMPTIONS  ###############
+
+1. \hm  is found directly under the \lx.  
+2. \hm value is a digit.  
+
 =cut
 
 use utf8;
@@ -24,6 +30,8 @@ use strict;
 use warnings;
 use Data::Dumper qw(Dumper);
 use Time::Piece;
+use oplStuff;
+
 my $date = Time::Piece->new;
 $date->time_separator("");
 $date->date_separator("");
@@ -34,25 +42,24 @@ my $scriptname = $0;
 my $logfile = "$tm.log";
 my %lx_Array;
 my %scalar_count;
-my $hm;
+my @dups;
 my @tmpRec;
-my $TO_PRINT = "TRUE";    #Flag indicates 
-my $DUPLICATE = "FALSE";
-my $ADD_HM_TO_UNIQUE = "FALSE";
+my $DUPLICATE = 0;
+my $ADD_HM_TO_UNIQUE = 0;
 my $DEFAULT_HM = 100;
 my $numargs = $#ARGV + 1;
-my @opld_file;
+
 
 if ( $numargs == 0 ){
-	 die "Usage: [add_hm.pl FILENAME | add_hm.pl FILENAME -u]"; 
+	 die "Usage: perl add_hm.pl FILENAME [-u]"; 
 }
 elsif ( $numargs == 1 ){
 	$infile = $ARGV[0]; 
 }
 else {
 	$infile = $ARGV[0]; 
-	if ($ARGV[1] eq "-u"){ $ADD_HM_TO_UNIQUE = "TRUE"; }
-	else { die "Usage: [add_hm.pl FILENAME | add_hm.pl FILENAME -u]"; }
+	if ($ARGV[1] eq "-u"){ $ADD_HM_TO_UNIQUE = 1; }
+	else { die "Usage: perl add_hm.pl FILENAME [-u]"; }
 }
 
 
@@ -63,7 +70,7 @@ open(my $fhlogfile, '>:encoding(UTF-8)', $logfile)
 write_to_log("Input file $infile");
 
 #opl the file - i.e. put each record on a line.
-opl_file();
+my @opld_file = opl_file($infile);
 
 #Build lx_Array, a hash with the lexeme as the key; lexeme->[hm,hm,hm] or lexeme->[0] if it is not a homonym.  
 #If hm does not exist in the record, but the lexeme is not unique, add a 0 to the array 
@@ -75,12 +82,26 @@ opl_file();
 #   D->[1,0,0]  Lexeme D is found 3 times, the first entry found has \hm 1.
 
 foreach my $line (@opld_file) {
+my $hm;
+my $key;
 
-	if ($line =~ /\\lx (.*?)#\\hm (\d*?)#/){
-		push @{$lx_Array{$1}}, $2;
-	}
-	elsif ($line =~ /\\lx (.*?)#/){
-		push @{$lx_Array{$1}}, 0;
+	if ($line =~ /\\lx (.*?)#(\\hm (\d*?)#)*/){
+		$hm = $2 ? $3 : 0;
+		$key = $1;
+        	push @{$lx_Array{$1}}, $hm;
+
+		#verify a non zero hm value is a duplicate.  If it is, write the info to the logfile. 
+		#no processing will be done on a file that contains duplicate hm numbers.
+
+		if ( (scalar @{$lx_Array{$key}} > 1 ) && ( $hm > 0) ){
+			#test for duplicate homograph numbers
+			@dups =  grep { $hm == $_ } @{$lx_Array{$key}} ;
+			if ( scalar @dups > 1 ){
+				$DUPLICATE = 1;
+				write_to_log("CANNOT PROCEED: Duplicate homograph value for lexeme $key");
+			}	
+		}
+
 	}
 
 }
@@ -91,9 +112,9 @@ update_homographs();
 
 
 #If no duplicate homographs were found, then we can print out the updated file
-if ($TO_PRINT eq "TRUE"){
+if ($DUPLICATE == 0){
 
-	if ( $ADD_HM_TO_UNIQUE eq "TRUE" ){
+	if ( $ADD_HM_TO_UNIQUE == 1 ){
 		write_to_log("\nAdding default value $DEFAULT_HM to unique lexemes\n");
 	}
 	foreach my $r (@opld_file){
@@ -102,7 +123,7 @@ if ($TO_PRINT eq "TRUE"){
 				if ( $scalar_count{$1} > 1 ) {
 					$r =~ s/^(\\lx [^#]*#)\\hm (.*?)#/$1\\hm 1#/;
 				}
-				elsif ( $ADD_HM_TO_UNIQUE eq "FALSE" ){
+				elsif ( $ADD_HM_TO_UNIQUE == 0 ){
 					$r =~ s/^(\\lx [^#]*#)\\hm (.*?)#/$1/;
 				}
 			}
@@ -112,8 +133,8 @@ if ($TO_PRINT eq "TRUE"){
 			if ( $hm > 0 ){ 
 				$r =~ s/^(\\lx (.*?#))/$1\\hm $hm#/;
 			}
-			elsif ( $ADD_HM_TO_UNIQUE eq "TRUE" ){
-				write_to_log(qq(Adding \\hm $DEFAULT_HM to unique lexeme $1));
+			elsif ( $ADD_HM_TO_UNIQUE == 1 ){
+				write_to_log("Adding \\hm $DEFAULT_HM to unique lexeme $1");
 				$r =~ s/^(\\lx [^#]*#)/$1\\hm $DEFAULT_HM#/;
 			}
 		}
@@ -124,19 +145,13 @@ if ($TO_PRINT eq "TRUE"){
 	}
 }
 else {
-	write_to_log (qq(Duplicate \\hm values have been found. SFM file must be corrected.));
-	print (qq(No data has been written. See details in log file.));
+	write_to_log ("Duplicate \\hm values have been found. SFM file must be corrected.");
+	print ("Duplicate homograph numbers found.  No data has been written. See details in log file.\n");
 
 }
 
 close $fhlogfile;
 ######################  SUBROUTINES #################################
-
-sub write_to_log{
-
-        my ($message) = @_;
-	        print $fhlogfile "$message\n";
-}
 
 sub update_homographs{
 
@@ -146,100 +161,46 @@ sub update_homographs{
 #Use lx_Array to create a scalar_count.  scalar_count key = lexeme, value = # of homographs.  This is used
 #later in determining which lexeme was an "original" entry after new entries have been added (presumably by se2lx).
 #
-	foreach my $key ( keys %lx_Array ){
-	my %seen;
-	my $hm_val;
-	my @dup_rec;
+my $key;
+	foreach  $key ( keys %lx_Array ){
 
-		$DUPLICATE = "FALSE";
 		@tmpRec = @{$lx_Array{$key}};
 		$scalar_count{$key} = scalar @tmpRec;
-		if ( scalar @tmpRec > 1 ){
-			#this is a homonym
-			#check here to see if we have any duplicate \hm for this lexeme.
-	 		@dup_rec = @tmpRec;
-			@dup_rec = grep { $_  != 0 } @dup_rec;
-			foreach $hm_val (@dup_rec){
-				next unless $seen{$hm_val}++;
-				$DUPLICATE = "TRUE";
-		
-			}
-			if ($DUPLICATE eq "TRUE"){
-				write_to_log(qq(CANNOT PROCEED: Duplicate homograph value for lexeme $key));
-				$TO_PRINT = "FALSE";
-	 		}	
-			else {
-				#special processing needed here in the case add_hm has added the 
-				#default hm number to a unique lexeme, but after further processing, 
-				#I now find that the lexeme is no longer unique.  
-				#In this case, set the default value to 1.
-				if ( $ADD_HM_TO_UNIQUE eq "FALSE" ){
-					for (my $i=0; $i< scalar @tmpRec; $i++){
-						if ( $tmpRec[$i] == $DEFAULT_HM ){
-							$tmpRec[$i] = 1;
 
-						}
-					}
+		#special processing needed here in the case add_hm has added the 
+		#default hm number to a unique lexeme, but after further processing, 
+		#I now find that the lexeme is no longer unique.  
+		#In this case, set the default value to 1.
+		if ( $ADD_HM_TO_UNIQUE == 0 ){
+			for (my $i=0; $i< scalar @tmpRec; $i++){
+				if ( $tmpRec[$i] == $DEFAULT_HM ){
+					$tmpRec[$i] = 1;
 
 				}
-				#iterate through the list of hm numbers.  Replace zeros with the next 
-				#highest value.
-				for (my $i=0; $i< scalar @tmpRec; $i++ ){
-					if ( $tmpRec[$i] == 0 ){
-						#get max number 
-						my @sorted = sort { $a <=> $b } @tmpRec;
-						my $largest = pop @sorted;
-						$largest++;
-						@tmpRec[$i]=$largest;
-						write_to_log("Updating lexeme $key with hm $largest");
-					}
+			}
+
+		}
+		#iterate through the list of hm numbers.  Replace zeros with the next 
+		#highest value.
+		if ( scalar @tmpRec > 1){
+			for (my $i=0; $i< scalar @tmpRec; $i++ ){
+				if ( $tmpRec[$i] == 0 ){
+					#get max number 
+					my @sorted = sort { $a <=> $b } @tmpRec;
+					my $largest = pop @sorted;
+					$largest++;
+					@tmpRec[$i]=$largest;
+					write_to_log("Updating lexeme $key with hm $largest");
 				}
 			}
 		}
 
-
-	@{$lx_Array{$key}} = @tmpRec;
+		@{$lx_Array{$key}} = @tmpRec;
 
 	}
 }
+sub write_to_log{
 
-sub opl_file{
-
-open(my $fhinfile, '<:encoding(UTF-8)', $infile)
-  or die "Could not open file '$infile' $!";
-
-	my $firstLine = "TRUE";
-	my $line;
-	while (<$fhinfile>){
-		chomp;
-		if ( $firstLine eq "TRUE" ){
-			$firstLine = "FALSE";
-		}
-		elsif (/\\lx / ){
-
-			push @opld_file, $line."\n"; 
-			$line="";
-				
-		}
-		s/#/\_\_hash\_\_/g;
-		$line .= $_."#";		
-	}
-	$line .= "#";		
-	push @opld_file, $line."\n";
-close $fhinfile;
+        my ($message) = @_;
+                print $fhlogfile "$message\n";
 }
-
-
-sub de_opl_file{
-	#added wrapper "if" because I get a warming if I don't.
-	if ( length $_[0] ){
-		my $l = $_[0];
-		#chomp $l;
-		$l =~ s/#/\n/g;
-		$l =~ s/\_\_hash\_\_/#/g;
-		return $l;
-	}
-	else { return ""; }
-}
-
-
