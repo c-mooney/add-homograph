@@ -4,18 +4,17 @@ Using the -u option adds homographs to unique lexemes as well. Default value of 
 
 
 Usage:
-#adds homographs where necessary and removes \hm Default Value (set to 100) to unique entries.
-#hm Default Value is placed in an SFM when using this script with the -u option. Creates log file add_hm.<time>.log
-#
-	perl add_hm.pl FILENAME.SFM  
+	perl add_hm.pl FILENAME.SFM 
 
-
-#adds homographs where necessary and adds \hm Default Value (set to 100) to unique entries.  
-#Creates log file add_hm_u.<time>.log
-#
+#adds homographs where necessary and removes \hm Default Value (set to 100) from unique entries.
+#creates <timestamp>.log in current directory
+	 
 	perl add_hm.pl FILENAME.SFM -u
 
-
+#-u opton adds homographs where necessary and adds \hm Default Value (set to 100) to unique #entries.  
+#Creates log file <timestamp>.log
+#
+	
 #input file is an SFM file.  This file will be opl'd, processed and de_opl'd. 
 #output file is an SFM file.
 #
@@ -23,5 +22,6 @@ Usage:
   Requires:
   perl (at least 5.10)
   use utf8;
+  use oplStuff.pm 
   
   
