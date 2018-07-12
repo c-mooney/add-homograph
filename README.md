@@ -7,12 +7,12 @@ Usage:
 	perl add_hm.pl FILENAME.SFM 
 
 #adds homographs where necessary and removes \hm Default Value (set to 100) from unique entries.
-#creates <timestamp>.log in current directory
+creates timestamp.log in current directory
 	 
 	perl add_hm.pl FILENAME.SFM -u
 
 #-u opton adds homographs where necessary and adds \hm Default Value (set to 100) to unique #entries.  
-#Creates log file <timestamp>.log
+#Creates timestamp.log in current directory
 #
 	
 #input file is an SFM file.  This file will be opl'd, processed and de_opl'd. 
