@@ -1,26 +1,29 @@
 # add-homograph
-Perl script which adds homographs to SFM as needed and removes any homographs matching the default value (100) if lexeme is unique.
-Using the -u option adds homographs to unique lexemes as well. Default value of homograph for unique lexemes is 100. 
+Perl script which adds homographs to SFM as needed. 
+Using the -u option, add_hm.pl will add a default \hm 100 to a unique record as well as adding homographs to non unique entries.
+
+Executing add_hm.pl to an SFM file that includes the default \hm 100 to unique entries will result in the default \hm 100 being removed.
 
 
 	perl add_hm.pl FILENAME.SFM 
 
 #adds homographs where necessary and removes \hm Default Value (set to 100) from unique entries.
-creates timestamp.log in current directory
+#Creates timestamp.log in current directory
 	 
 	perl add_hm.pl FILENAME.SFM -u
 
-#-u opton adds homographs where necessary and adds \hm Default Value (set to 100) to unique #entries.  
+#-u option adds homographs where necessary and adds \hm Default Value (set to 100) to unique entries.  
 #Creates timestamp.log in current directory
-#
-	
-#input file is an SFM file.  This file will be opl'd, processed and de_opl'd. 
-#output file is an SFM file.
-#
+
+
+Assumptions: 	
+#Input file is an SFM file in utf-8.  
+#Output file is an SFM file in utf-8.
+
   
   Requires:
-  perl (at least 5.10)
-  use utf8;
+  perl 5.22
   use oplStuff.pm 
   
+ oplStuff.pm is included in this project.
   
