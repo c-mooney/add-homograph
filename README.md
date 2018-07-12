@@ -7,18 +7,19 @@ Executing add_hm.pl to an SFM file that includes the default \hm 100 to unique e
 
 	perl add_hm.pl FILENAME.SFM 
 
-#adds homographs where necessary and removes \hm Default Value (set to 100) from unique entries.
-#Creates timestamp.log in current directory
+adds homographs where necessary and removes \hm Default Value (set to 100) from unique entries.
+Creates timestamp.log in current directory
 	 
 	perl add_hm.pl FILENAME.SFM -u
 
-#-u option adds homographs where necessary and adds \hm Default Value (set to 100) to unique entries.  
-#Creates timestamp.log in current directory
+-u option adds homographs where necessary and adds \hm Default Value (set to 100) to unique entries.  
+Creates timestamp.log in current directory
 
 
 Assumptions: 	
-#Input file is an SFM file in utf-8.  
-#Output file is an SFM file in utf-8.
+
+Input file is an SFM file in utf-8.  
+Output file is an SFM file in utf-8.
 
   
   Requires:
