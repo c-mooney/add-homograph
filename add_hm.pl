@@ -19,8 +19,7 @@ Usage:
 
 #########  ASSUMPTIONS  ###############
 
-1. \hm  is found directly under the \lx.  
-2. \hm value is a digit.  
+\hm value is a digit.  
 
 =cut
 
@@ -40,7 +39,7 @@ my $tm = $date->datetime;
 my $infile ="";
 my $scriptname = $0;
 my $logfile = "$tm.log";
-my %lx_Array;
+my %hm_collection_hash;
 my %scalar_count;
 my @dups;
 my @tmpRec;
@@ -72,7 +71,7 @@ write_to_log("Input file $infile");
 #opl the file - i.e. put each record on a line.
 my @opld_file = opl_file($infile);
 
-#Build lx_Array, a hash with the lexeme as the key; lexeme->[hm,hm,hm] or lexeme->[0] if it is not a homonym.  
+#Build hm_collection_hash, a hash with the lexeme as the key; lexeme->[hm,hm,hm] or lexeme->[0] if it is not a homonym.  
 #If hm does not exist in the record, but the lexeme is not unique, add a 0 to the array 
 #as a place holder to be filled in later with a proper homograph number.
 #Array may look something like:
@@ -85,17 +84,17 @@ foreach my $line (@opld_file) {
 my $hm;
 my $key;
 
-	if ($line =~ /\\lx (.*?)#(\\hm (\d*?)#)*/){
-		$hm = $2 ? $3 : 0;
+	if ($line =~ /\\lx (.*?)#((.*?)\\hm (\d*?)#)*/){
+		$hm = $2 ? $4 : 0;
 		$key = $1;
-        	push @{$lx_Array{$1}}, $hm;
+        	push @{$hm_collection_hash{$key}}, $hm;
 
 		#verify a non zero hm value is a duplicate.  If it is, write the info to the logfile. 
 		#no processing will be done on a file that contains duplicate hm numbers.
 
-		if ( (scalar @{$lx_Array{$key}} > 1 ) && ( $hm > 0) ){
+		if ( (scalar @{$hm_collection_hash{$key}} > 1 ) && ( $hm > 0) ){
 			#test for duplicate homograph numbers
-			@dups =  grep { $hm == $_ } @{$lx_Array{$key}} ;
+			@dups =  grep { $hm == $_ } @{$hm_collection_hash{$key}} ;
 			if ( scalar @dups > 1 ){
 				$DUPLICATE = 1;
 				write_to_log("CANNOT PROCEED: Duplicate homograph value for lexeme $key");
@@ -111,16 +110,16 @@ my $key;
 update_homographs();
 
 
-#If no duplicate homographs were found, then we can print out the updated file
+#If no duplicate homographs were found, we can write the updated file
 if ($DUPLICATE == 0){
 
 	if ( $ADD_HM_TO_UNIQUE == 1 ){
 		write_to_log("\nAdding default value $DEFAULT_HM to unique lexemes\n");
 	}
 	foreach my $r (@opld_file){
-		if ($r =~ /\\lx (.*?)#\\hm (\d*?)#/){ 
-			if ( $2 == $DEFAULT_HM ){
-				if ( $scalar_count{$1} > 1 ) {
+		if ($r =~ /(\\lx (.*?)#.*\\hm (\d*?)#)/){ 
+			if ( $3 == $DEFAULT_HM ){
+				if ( $scalar_count{$2} > 1 ) {
 					$r =~ s/^(\\lx [^#]*#)\\hm (.*?)#/$1\\hm 1#/;
 				}
 				elsif ( $ADD_HM_TO_UNIQUE == 0 ){
@@ -129,7 +128,7 @@ if ($DUPLICATE == 0){
 			}
 		}
 		elsif ( $r =~ /^\\lx (.*?)#/ ){ 
-			my $hm = shift @{$lx_Array{$1}};
+			my $hm = shift @{$hm_collection_hash{$1}};
 			if ( $hm > 0 ){ 
 				$r =~ s/^(\\lx (.*?#))/$1\\hm $hm#/;
 			}
@@ -155,16 +154,16 @@ close $fhlogfile;
 
 sub update_homographs{
 
-#I've built my hash array of lexeme->[0|hm+] (lx_Array).   Iterate through each of the hm lists and 
+#I've built my hash array of lexeme->[0|hm+] (hm_collection_hash).   Iterate through each of the hm lists and 
 #fill in the zeros with the next largest number if the record is a homonym.
 #
-#Use lx_Array to create a scalar_count.  scalar_count key = lexeme, value = # of homographs.  This is used
+#Use hm_collection_hash to create a scalar_count.  scalar_count key = lexeme, value = # of homographs.  This is used
 #later in determining which lexeme was an "original" entry after new entries have been added (presumably by se2lx).
 #
 my $key;
-	foreach  $key ( keys %lx_Array ){
+	foreach  $key ( keys %hm_collection_hash ){
 
-		@tmpRec = @{$lx_Array{$key}};
+		@tmpRec = @{$hm_collection_hash{$key}};
 		$scalar_count{$key} = scalar @tmpRec;
 
 		#special processing needed here in the case add_hm has added the 
@@ -195,7 +194,7 @@ my $key;
 			}
 		}
 
-		@{$lx_Array{$key}} = @tmpRec;
+		@{$hm_collection_hash{$key}} = @tmpRec;
 
 	}
 }
