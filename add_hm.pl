@@ -19,11 +19,12 @@ Usage:
 
 #########  ASSUMPTIONS  ###############
 
-\hm value is a digit.  
+1. \hm value is a digit.  
 
 =cut
 
 use utf8;
+use open qw/:std :utf8/;
 use feature ':5.22';
 use strict;
 use warnings;
